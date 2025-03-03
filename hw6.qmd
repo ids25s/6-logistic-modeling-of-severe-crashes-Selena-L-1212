@@ -334,3 +334,43 @@ print(f"Best F1 score2: {best_f1_2:.2f}")
 
 Both F1 score are the same(0.59). It is kind of balanece the precision and recall. But the models found some severe crashes, and missed large crashes.
 
+
+
+```{python}
+# Print AUC for LR
+fpr, tpr, thresholds = roc_curve(y_test, y_scores)
+roc_auc = auc(fpr, tpr)
+print(f"AUC: {roc_auc:.2f}")
+
+# Plot ROC curve
+plt.figure()
+plt.plot(fpr, tpr, color='darkorange', lw=2, label=f'ROC curve (AUC = {roc_auc:.2f})')
+plt.plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--')  # Diagonal line (random classifier)
+plt.xlim([0.0, 1.0])
+plt.ylim([0.0, 1.05])
+plt.xlabel('False Positive Rate')
+plt.ylabel('True Positive Rate')
+plt.title('Receiver Operating Characteristic (ROC) Curve')
+plt.legend(loc="lower right")
+plt.show()
+
+
+# Print AUC for rugularized LR
+fpr2, tpr2, thresholds2 = roc_curve(y_test, y_scores2)
+roc_auc2 = auc(fpr2, tpr2)
+print(f"AUC: {roc_auc2:.2f}")
+
+# Plot ROC curve
+plt.figure()
+plt.plot(fpr2, tpr2, color='darkorange', lw=2, label=f'ROC curve (AUC = {roc_auc2:.2f})')
+plt.plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--')  # Diagonal line (random classifier)
+plt.xlim([0.0, 1.0])
+plt.ylim([0.0, 1.05])
+plt.xlabel('False Positive Rate')
+plt.ylabel('True Positive Rate')
+plt.title('Receiver Operating Characteristic (ROC) Curve2')
+plt.legend(loc="lower right")
+plt.show()
+```
+
+The AUC of regularized logistic regression is 0.46, the AUC of logistic regression is 0.45. Since both models have AUC values below to 0.5 and very close to each other, which is wrost than guessing. It suggests that they are not effective at predicting crash severity.
