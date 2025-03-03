@@ -70,3 +70,14 @@ crash_data['hour'] = crash_data['crash_datetime'].dt.hour
 crash_data["severe"] = ((crash_data["number_of_persons_injured"] + \
     crash_data["number_of_persons_killed"]) >= 1).astype(int)
 ```
+
+```{python}
+# merge datasets on zipcode
+merged_data = crash_data.merge(zip_data, on='zipcode', how='left')
+merged_data = merged_data.merge(acs_data, on='zipcode', how='left')
+```
+
+
+
+
+
