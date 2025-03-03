@@ -115,3 +115,36 @@ X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.20, random
 ```
 
 
+
+
+### 2. Fit a logistic model on the training data and validate the performance on the testing data. Explain the confusion matrix result from the testing data. Compute the F1 score.
+
+```{python}
+model = LogisticRegression()
+model.fit(X_train, y_train)
+
+# Predict labels on the test set
+y_pred = model.predict(X_test)
+
+# Get predicted probabilities for ROC curve and AUC
+y_scores = model.predict_proba(X_test)[:, 1]  # Probability for the positive class
+
+# Compute confusion matrix
+cm = confusion_matrix(y_test, y_pred)
+
+# Print confusion matrix and metrics
+print("Confusion Matrix:\n", cm)
+
+# Calculate accuracy, precision, and recall
+accuracy = accuracy_score(y_test, y_pred)
+precision = precision_score(y_test, y_pred)
+recall = recall_score(y_test, y_pred)
+
+# Print confusion matrix and metrics
+print(f"Accuracy: {accuracy:.2f}")
+print(f"Precision: {precision:.2f}")
+print(f"Recall: {recall:.2f}")
+```
+
+According to the confusion matrix, the True Positive (TP) is 188， which means 188 samples are predicted by the model to be Not Severe, and their actual category is also Not Severe. The 	False Negative (FN) is 14, indicating that 14 samples were predicted by the model to be Severe, but they were actually Not Severe. The False Positive (FP) is 138, which indicates that 138 samples were predicted by the model to be Not Severe, but they were in fact Severe. The True Negative (TN) is 6， indicating there are 6 samples predicted by the model to be Severe and their actual category is Severe.
+
