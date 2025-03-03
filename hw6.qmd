@@ -170,3 +170,91 @@ print(f"Best F1 score: {best_f1:.2f}")
 
 
 
+### 3. Fit a logistic model on the training data with L1 regularization. Select the tuning parameter with 5-fold cross-validation in F1 score.
+
+```{python}
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.linear_model import LogisticRegression
+from sklearn.preprocessing import StandardScaler
+
+# Function to compute lambda grid
+def get_lambda_l1(xs: np.ndarray, y: np.ndarray, nlambda: int, min_ratio: float):
+    ybar = np.mean(y)
+    xbar = np.mean(xs, axis=0)
+    xs_centered = xs - xbar
+    xty = np.dot(xs_centered.T, (y - ybar))
+    lmax = np.max(np.abs(xty))
+    lambdas = np.logspace(np.log10(lmax), np.log10(min_ratio * lmax), num=nlambda)
+    return lambdas
+
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train)
+
+# Compute lambda values
+nlambda = 100
+min_ratio = 0.01
+lambda_values = get_lambda_l1(X_train_scaled, y_train, nlambda, min_ratio)
+
+
+# Store coefficients for each lambda
+coefficients = []
+
+# Fit logistic regression with L1 regularization for each lambda
+for lam in lambda_values:
+    model_l1 = LogisticRegression(penalty='l1', solver='liblinear', C=1/lam, max_iter=1000)
+    model_l1.fit(X_train_scaled, y_train)
+    coefficients.append(model_l1.coef_.flatten())
+
+# Convert coefficients list to NumPy array for plotting
+coefficients = np.array(coefficients)
+
+# Plot coefficient paths
+plt.figure(figsize=(10, 6))
+for i in range(coefficients.shape[1]):
+    plt.plot(lambda_values, coefficients[:, i], label=f'Feature {i + 1}')
+
+plt.xscale('log')
+plt.xlabel('Lambda values (log scale)')
+plt.ylabel('Coefficient value')
+plt.title('Solution Path of Logistic Lasso Regression (L1 Regularization)')
+plt.grid(True)
+plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+plt.show()
+```
+
+
+
+```{python}
+import numpy as np
+from sklearn.linear_model import LogisticRegressionCV
+from sklearn.model_selection import train_test_split
+from sklearn.datasets import make_classification
+from sklearn.metrics import accuracy_score
+
+log_reg_cv = LogisticRegressionCV(
+    Cs=np.logspace(-4, 4, 20),  # Range of C values (inverse of lambda)
+    cv=5,                       # 5-fold cross-validation
+    penalty='l1',               # Lasso regularization (L1 penalty)
+    solver='liblinear',         # Solver for L1 regularization
+    scoring='accuracy',         # Optimize for accuracy
+    max_iter=10000              # Ensure convergence
+)
+
+# Train the model with cross-validation
+log_reg_cv.fit(X_train, y_train)
+
+# Best C value (inverse of lambda)
+print(f"Best C value: {log_reg_cv.C_[0]}")
+
+# Evaluate the model on the test set
+y_pred2 = log_reg_cv.predict(X_test)
+test_accuracy = accuracy_score(y_test, y_pred2)
+print(f"Test Accuracy: {test_accuracy:.2f}")
+
+# Display the coefficients of the best model
+print("Model Coefficients:\n", log_reg_cv.coef_)
+```
+
+
+
