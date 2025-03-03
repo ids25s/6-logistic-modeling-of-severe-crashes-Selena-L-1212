@@ -258,3 +258,39 @@ print("Model Coefficients:\n", log_reg_cv.coef_)
 
 
 
+
+
+
+
+### 4. Apply the regularized logistic regression to predict the severity of the crashes in the testing data. Compare the performance of the two logistic models in terms of accuracy, precision, recall, F1-score, and AUC.
+
+```{python}
+# Print metrics
+print("logistic regression:")
+print(f"Accuracy: {accuracy:.2f}")
+print(f"Precision: {precision:.2f}")
+print(f"Recall: {recall:.2f}")
+
+
+y_pred2 = log_reg_cv.predict(X_test)
+
+# Get predicted probabilities for ROC curve and AUC
+y_scores2 = log_reg_cv.predict_proba(X_test)[:, 1] 
+
+
+# Calculate accuracy, precision, and recall
+accuracy2 = accuracy_score(y_test, y_pred2)
+precision2 = precision_score(y_test, y_pred2)
+recall2 = recall_score(y_test, y_pred2)
+
+# Print metrics
+print("regularized logistic regression:")
+print(f"Accuracy: {accuracy2:.2f}")
+print(f"Precision: {precision2:.2f}")
+print(f"Recall: {recall2:.2f}")
+```
+
+For accuracy, both models have the same accuracy(0.56), which means that the overall percentage of correct predictions in both models is the same. 
+For precision, regularized logistic regression is 0.27, logistic regression is 0.3. Both model have lower precision, it often wrong when model predits the precision of crashes.
+For recall, regularized logistic regression has 0.03, logistic regression has 0.04. Both models have very low recall, indicating that they fail to identify a significant portion of the severe crashes in the dataset. 
+
