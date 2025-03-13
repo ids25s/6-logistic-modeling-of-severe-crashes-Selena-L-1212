@@ -1,0 +1,377 @@
+---
+title: "Homework Assignment 6"
+author: "Yuxiao Lin"
+toc: true
+number-sections: true
+highlight-style: pygments
+format: 
+  html: 
+    code-fold: true
+    html-math-method: katex
+  pdf: 
+    geometry: 
+      - top=30mm
+      - left=20mm
+##  docx: Never, unless to accommodate a collaborator
+---
+
+## NYC Crash severity modeling
+Using the cleaned NYC crash data, merged with zipcode level information, predict severe of a crash.
+```{python}
+import pandas as pd
+import numpy as np
+
+# Load the cleaned crash and zip code data
+crash_data = pd.read_feather("/Users/yuxiaolin/Downloads/nyccrashes_cleaned.feather")
+zip_data = pd.read_feather("/Users/yuxiaolin/Downloads/nyc_zip_areas.feather")
+
+# Drop NaN values in 'zip_code'
+crash_data = crash_data.dropna(subset=['zip_code'])
+
+# check the dtypes of zipcode
+print("zip_code's type:", crash_data['zip_code'].dtype)
+print("modzcta's type:", zip_data['modzcta'].dtype)
+
+# Convert 'zip_code' and 'modzcta' to strings
+crash_data['zipcode'] = crash_data['zip_code'].astype(str).str.zfill(5)
+zip_data['zipcode'] = zip_data['modzcta'].astype(str).str.zfill(5) 
+
+# Check that the conversion was correct
+print("zipcode's type:", crash_data['zipcode'].dtype)
+print("zipcode's type:", zip_data['zipcode'].dtype)
+
+# load acs data, and convert 'zip_code' to sting
+acs_data = pd.read_feather("/Users/yuxiaolin/Downloads/acs2023.feather")
+acs_data.columns = acs_data.columns.str.lower().str.replace(' ', '_')
+acs_data['zipcode'] = acs_data['zip_code'].astype(str).str.zfill(5) 
+print("acs_code's type:", acs_data['zipcode'].dtype)
+```
+
+
+
+```{python}
+# convert crash_data to numeric, then change back to string, in order to delete float
+crash_data['zipcode'] = pd.to_numeric(crash_data['zipcode'], errors='coerce')
+crash_data['zipcode'] = crash_data['zipcode'].fillna(0).astype(int).astype(str).str.zfill(5)
+
+# check two dataset whether have same output type
+print(crash_data['zipcode'].unique()[:10])
+print(zip_data['zipcode'].unique()[:10])
+```
+
+
+
+```{python}
+# create a new column 'hour'
+crash_data['crash_datetime'] = pd.to_datetime(crash_data['crash_datetime'])
+crash_data['hour'] = crash_data['crash_datetime'].dt.hour
+
+# create a new variable "severe"
+crash_data["severe"] = ((crash_data["number_of_persons_injured"] + \
+    crash_data["number_of_persons_killed"]) >= 1).astype(int)
+```
+
+```{python}
+# merge datasets on zipcode
+merged_data = crash_data.merge(zip_data, on='zipcode', how='left')
+merged_data = merged_data.merge(acs_data, on='zipcode', how='left')
+```
+
+
+
+
+
+### 1. Set random seed to 1234. Randomly select 20% of the crashes as testing data and leave the rest 80% as training data.
+
+```{python}
+np.random.seed(1234)
+
+merged_data.head(20)
+print(merged_data.columns)
+```
+
+
+```{python}
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import (
+    accuracy_score, precision_score, recall_score, confusion_matrix,
+    f1_score, roc_curve, auc
+)
+import matplotlib.pyplot as plt
+from sklearn.datasets import make_classification
+
+#features
+X = merged_data[["hour", "zip_code_x", "white_population", "black_population", "asian_population", "labor_force", "unemployed"]]
+y = merged_data['severe']
+
+# delete the rows that including missing value
+X = X.dropna()
+y = y.loc[X.index] 
+
+# randomly select testing data 20%, training data 80%
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.20, random_state=42)
+```
+
+
+
+
+### 2. Fit a logistic model on the training data and validate the performance on the testing data. Explain the confusion matrix result from the testing data. Compute the F1 score.
+
+```{python}
+model = LogisticRegression()
+model.fit(X_train, y_train)
+
+# Predict labels on the test set
+y_pred = model.predict(X_test)
+
+# Get predicted probabilities for ROC curve and AUC
+y_scores = model.predict_proba(X_test)[:, 1]  # Probability for the positive class
+
+# Compute confusion matrix
+cm = confusion_matrix(y_test, y_pred)
+
+# Print confusion matrix and metrics
+print("Confusion Matrix:\n", cm)
+
+# Calculate accuracy, precision, and recall
+accuracy = accuracy_score(y_test, y_pred)
+precision = precision_score(y_test, y_pred)
+recall = recall_score(y_test, y_pred)
+
+# Print confusion matrix and metrics
+print(f"Accuracy: {accuracy:.2f}")
+print(f"Precision: {precision:.2f}")
+print(f"Recall: {recall:.2f}")
+```
+
+According to the confusion matrix, the True Positive (TP) is 188， which means 188 samples are predicted by the model to be Not Severe, and their actual category is also Not Severe. The 	False Negative (FN) is 14, indicating that 14 samples were predicted by the model to be Severe, but they were actually Not Severe. The False Positive (FP) is 138, which indicates that 138 samples were predicted by the model to be Not Severe, but they were in fact Severe. The True Negative (TN) is 6， indicating there are 6 samples predicted by the model to be Severe and their actual category is Severe.
+
+
+```{python}
+fpr, tpr, thresholds = roc_curve(y_test, y_scores)
+
+# Compute F1 score for each threshold
+f1_scores = []
+for thresh in thresholds:
+    y_pred_thresh = (y_scores >= thresh).astype(int)  # Apply threshold to get binary predictions
+    f1 = f1_score(y_test, y_pred_thresh)
+    f1_scores.append(f1)
+
+# Find the best threshold (the one that maximizes F1 score)
+best_thresh = thresholds[np.argmax(f1_scores)]
+best_f1 = max(f1_scores)
+
+# Print the best threshold and corresponding F1 score
+print(f"Best threshold: {best_thresh:.4f}")
+print(f"Best F1 score: {best_f1:.2f}")
+```
+
+
+
+### 3. Fit a logistic model on the training data with L1 regularization. Select the tuning parameter with 5-fold cross-validation in F1 score.
+
+```{python}
+import matplotlib.pyplot as plt
+from sklearn.linear_model import LogisticRegression
+from sklearn.preprocessing import StandardScaler
+
+# Function to compute lambda grid
+def get_lambda_l1(xs: np.ndarray, y: np.ndarray, nlambda: int, min_ratio: float):
+    ybar = np.mean(y)
+    xbar = np.mean(xs, axis=0)
+    xs_centered = xs - xbar
+    xty = np.dot(xs_centered.T, (y - ybar))
+    lmax = np.max(np.abs(xty))
+    lambdas = np.logspace(np.log10(lmax), np.log10(min_ratio * lmax), num=nlambda)
+    return lambdas
+
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train)
+
+# Compute lambda values
+nlambda = 100
+min_ratio = 0.01
+lambda_values = get_lambda_l1(X_train_scaled, y_train, nlambda, min_ratio)
+
+
+# Store coefficients for each lambda
+coefficients = []
+
+# Fit logistic regression with L1 regularization for each lambda
+for lam in lambda_values:
+    model_l1 = LogisticRegression(penalty='l1', solver='liblinear', C=1/lam, max_iter=1000)
+    model_l1.fit(X_train_scaled, y_train)
+    coefficients.append(model_l1.coef_.flatten())
+
+# Convert coefficients list to NumPy array for plotting
+coefficients = np.array(coefficients)
+
+# Plot coefficient paths
+plt.figure(figsize=(10, 6))
+for i in range(coefficients.shape[1]):
+    plt.plot(lambda_values, coefficients[:, i], label=f'Feature {i + 1}')
+
+plt.xscale('log')
+plt.xlabel('Lambda values (log scale)')
+plt.ylabel('Coefficient value')
+plt.title('Solution Path of Logistic Lasso Regression (L1 Regularization)')
+plt.grid(True)
+plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+plt.show()
+```
+
+
+
+```{python}
+from sklearn.linear_model import LogisticRegressionCV
+from sklearn.model_selection import train_test_split
+from sklearn.datasets import make_classification
+from sklearn.metrics import accuracy_score
+
+log_reg_cv = LogisticRegressionCV(
+    Cs=np.logspace(-4, 4, 20),  # Range of C values (inverse of lambda)
+    cv=5,                       # 5-fold cross-validation
+    penalty='l1',               # Lasso regularization (L1 penalty)
+    solver='liblinear',         # Solver for L1 regularization
+    scoring='accuracy',         # Optimize for accuracy
+    max_iter=10000              # Ensure convergence
+)
+
+# Train the model with cross-validation
+log_reg_cv.fit(X_train, y_train)
+
+# Best C value (inverse of lambda)
+print(f"Best C value: {log_reg_cv.C_[0]}")
+
+# Evaluate the model on the test set
+y_pred2 = log_reg_cv.predict(X_test)
+test_accuracy = accuracy_score(y_test, y_pred2)
+print(f"Test Accuracy: {test_accuracy:.2f}")
+
+# Display the coefficients of the best model
+print("Model Coefficients:\n", log_reg_cv.coef_)
+```
+
+
+
+
+
+
+
+### 4. Apply the regularized logistic regression to predict the severity of the crashes in the testing data. Compare the performance of the two logistic models in terms of accuracy, precision, recall, F1-score, and AUC.
+
+```{python}
+# Print metrics
+print("logistic regression:")
+print(f"Accuracy: {accuracy:.2f}")
+print(f"Precision: {precision:.2f}")
+print(f"Recall: {recall:.2f}")
+
+
+y_pred2 = log_reg_cv.predict(X_test)
+
+# Get predicted probabilities for ROC curve and AUC
+y_scores2 = log_reg_cv.predict_proba(X_test)[:, 1] 
+
+
+# Calculate accuracy, precision, and recall
+accuracy2 = accuracy_score(y_test, y_pred2)
+precision2 = precision_score(y_test, y_pred2)
+recall2 = recall_score(y_test, y_pred2)
+
+# Print metrics
+print("regularized logistic regression:")
+print(f"Accuracy: {accuracy2:.2f}")
+print(f"Precision: {precision2:.2f}")
+print(f"Recall: {recall2:.2f}")
+```
+
+For accuracy, both models have the same accuracy(0.56), which means that the overall percentage of correct predictions in both models is the same. 
+For precision, regularized logistic regression is 0.27, logistic regression is 0.3. Both model have lower precision, it often wrong when model predits the precision of crashes.
+For recall, regularized logistic regression has 0.03, logistic regression has 0.04. Both models have very low recall, indicating that they fail to identify a significant portion of the severe crashes in the dataset. 
+
+
+
+```{python}
+# Print AUC for LR
+fpr, tpr, thresholds = roc_curve(y_test, y_scores)
+roc_auc = auc(fpr, tpr)
+print(f"AUC: {roc_auc:.2f}")
+
+# Plot ROC curve
+plt.figure()
+plt.plot(fpr, tpr, color='darkorange', lw=2, label=f'ROC curve (AUC = {roc_auc:.2f})')
+plt.plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--')  # Diagonal line (random classifier)
+plt.xlim([0.0, 1.0])
+plt.ylim([0.0, 1.05])
+plt.xlabel('False Positive Rate')
+plt.ylabel('True Positive Rate')
+plt.title('Receiver Operating Characteristic (ROC) Curve')
+plt.legend(loc="lower right")
+plt.show()
+
+
+# Print AUC for rugularized LR
+fpr2, tpr2, thresholds2 = roc_curve(y_test, y_scores2)
+roc_auc2 = auc(fpr2, tpr2)
+print(f"AUC: {roc_auc2:.2f}")
+
+# Plot ROC curve
+plt.figure()
+plt.plot(fpr2, tpr2, color='darkorange', lw=2, label=f'ROC curve (AUC = {roc_auc2:.2f})')
+plt.plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--')  # Diagonal line (random classifier)
+plt.xlim([0.0, 1.0])
+plt.ylim([0.0, 1.05])
+plt.xlabel('False Positive Rate')
+plt.ylabel('True Positive Rate')
+plt.title('Receiver Operating Characteristic (ROC) Curve2')
+plt.legend(loc="lower right")
+plt.show()
+```
+
+The AUC of regularized logistic regression is 0.46, the AUC of logistic regression is 0.45. Since both models have AUC values below to 0.5 and very close to each other, which is wrost than guessing. It suggests that they are not effective at predicting crash severity.
+
+
+
+
+```{python}
+# F1 score for LR
+# Compute F1 score for each threshold
+f1_scores = []
+for thresh in thresholds:
+    y_pred_thresh = (y_scores >= thresh).astype(int)  # Apply threshold to get binary predictions
+    f1 = f1_score(y_test, y_pred_thresh)
+    f1_scores.append(f1)
+
+# Find the best threshold (the one that maximizes F1 score)
+best_thresh = thresholds[np.argmax(f1_scores)]
+best_f1 = max(f1_scores)
+
+# Print the best threshold and corresponding F1 score
+print(f"Best threshold: {best_thresh:.4f}")
+print(f"Best F1 score: {best_f1:.2f}")
+
+
+
+
+# Compute F1 score for each threshold
+f1_scores2 = []
+for thresh in thresholds2:
+    y_pred_thresh2 = (y_scores >= thresh).astype(int)  # Apply threshold to get binary predictions
+    f1 = f1_score(y_test, y_pred_thresh2)
+    f1_scores2.append(f1)
+
+# Find the best threshold (the one that maximizes F1 score)
+best_thresh2 = thresholds2[np.argmax(f1_scores2)]
+best_f1_2 = max(f1_scores2)
+
+# Print the best threshold and corresponding F1 score
+print(f"Best threshold2: {best_thresh2:.4f}")
+print(f"Best F1 score2: {best_f1_2:.2f}")
+```
+
+
+Both F1 score are the same(0.59). It is kind of balanece the precision and recall. But the models found some severe crashes, and missed large crashes.
+
+
